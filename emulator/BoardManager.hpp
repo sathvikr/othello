@@ -12,7 +12,6 @@ class BoardManager {
         BoardManager();
         ~BoardManager();
 
-        void initializeBoard();
         void resetBoard();
         bool applyMove(uint8_t move);
         uint64_t getLegalMoves();
