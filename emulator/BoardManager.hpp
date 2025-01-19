@@ -8,7 +8,7 @@ class BoardManager {
         uint64_t playerBoard;
         uint64_t opponentBoard;
         uint64_t legalMoves;
-        bool isBlackTurn;
+        bool isBlackTurn;;
     public:
         const uint64_t NOT_LEFT_EDGE = 0xfefefefefefefefe;
         const uint64_t NOT_RIGHT_EDGE = 0x7f7f7f7f7f7f7f7f;
