@@ -7,7 +7,7 @@ BoardManager::BoardManager() {
     isBlackTurn = true;
 }
 
-BoardManager::~Bo;ardManager() {
+BoardManager::~BoardManager() {
 }
 
 void BoardManager::resetBoard() {
