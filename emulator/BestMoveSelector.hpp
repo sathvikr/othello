@@ -2,10 +2,11 @@
 #define BEST_MOVE_SELECTOR_HPP
 
 #include <cstdint>
+#include "BoardManager.hpp"
 
 class BestMoveSelector {
     public:
-        static uint8_t selectBestMove(uint64_t legalMoves, uint64_t playerBoard, uint64_t opponentBoard);
+        static uint8_t selectBestMove(BoardManager board);
 };
 
 #endif
