@@ -9,4 +9,3 @@ class MoveEvaluator {
         static int8_t evaluateMove(uint8_t move, BoardManager board);
 };
 
-#endif

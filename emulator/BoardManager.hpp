@@ -10,8 +10,7 @@ class BoardManager {
         uint64_t legalMoves;
         bool isBlackTurn;
     public:
-        const uint64_t NOT_LEFT_EDGE = 0xfefefefefefefefe;
-        const uint64_t NOT_RIGHT_EDGE = 0x7f7f7f7f7f7f7f7f;
+      
         const int8_t DIRECTIONS[8] = {8, -8, 1, -1, 9, 7, -7, -9};
         const uint64_t EDGE_MASKS[8] = {
             ~0ULL,          // N
