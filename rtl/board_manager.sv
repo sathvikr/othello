@@ -1,3 +1,3 @@
-module er();
+module board_manager();
 
-endmodule
+endmodule;
