@@ -2,21 +2,14 @@
 #define BOARD_MANAGER_HPP
 
 #include <cstdint>
+#include <cassert>
 
-class BoardManager {
-    private:
-        uint64_t playerBoard;
-        uint64_t opponentBoard;
-        uint64_t legalMoves;
-    public:
-        BoardManager();
-        ~BoardManager();
+uint64_t shift(uint64_t disks, int dir);
 
-        void resetBoard();
-        bool applyMove(uint8_t move);
-        uint64_t getLegalMoves();
-        uint64_t getPlayerBoard();
-        uint64_t getOpponentBoard();
-};
+static const int NUM_DIRS = 8;
+
+uint64_t generateMoves(uint64_t myDisks, uint64_t oppDisks);
+
+void resolveMove(uint64_t *myDisks, uint64_t *oppDisks, int boardIdx);
 
 #endif
