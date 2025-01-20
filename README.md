@@ -41,3 +41,10 @@ This is an Othello (Reversi) game engine implementation that handles game logic 
 - Game status messages
 - Error messages
 - Final score and winner
+
+
+### Explore 8 directions in parallel
+
+## System-level architecture
+
+
