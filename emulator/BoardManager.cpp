@@ -110,25 +110,37 @@ uint64_t BoardManager::getLegalMoves() {
     uint64_t moves = 0;
     uint64_t empty = ~(playerBoard | opponentBoard);
 
-    // Try all 8 directions from each opponent piece
-    for (int i = 0; i < 8; i++) {
-        int8_t dir = DIRECTIONS[i];
-        uint64_t mask = EDGE_MASKS[i];
-        uint64_t candidates = opponentBoard & mask;
-        
-        if (dir > 0) {
-            candidates = (candidates << dir) & empty;
-            while (candidates) {
-                moves |= candidates & empty;
-                candidates = ((candidates & mask) << dir) & playerBoard;
-            }
-        } else {
-            candidates = (candidates >> -dir) & empty;
-            while (candidates) {
-                moves |= candidates & empty;
-                candidates = ((candidates & mask) >> -dir) & playerBoard;
+    // For each empty square
+    uint64_t potentialMoves = empty;
+    while (potentialMoves) {
+        // Get the position of the rightmost 1
+        uint8_t pos = __builtin_ctzll(potentialMoves);
+        uint64_t moveMask = 1ULL << pos;
+
+        // Try all 8 directions
+        for (int i = 0; i < 8; i++) {
+            int8_t dir = DIRECTIONS[i];
+            uint64_t mask = EDGE_MASKS[i];
+            uint64_t current = moveMask;
+            bool foundOpponent = false;
+
+            // Move in the current direction while we see opponent pieces
+            while ((current & mask) && (current = (dir > 0 ? current << dir : current >> -dir))) {
+                if (current & opponentBoard) {
+                    foundOpponent = true;
+                } else if (current & playerBoard) {
+                    if (foundOpponent) {
+                        moves |= moveMask;  // This is a valid move
+                    }
+                    break;
+                } else {
+                    break;
+                }
             }
         }
+
+        // Clear the rightmost 1
+        potentialMoves &= (potentialMoves - 1);
     }
 
     return moves;
