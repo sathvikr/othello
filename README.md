@@ -1,4 +1,13 @@
-# Othello Implementation with Bitboards and Hardware Design
+# Welcome to Othello!
+
+```
+   ██████  ████████ ██   ██ ███████ ██      ██       ██████     
+  ██    ██    ██    ██   ██ ██      ██      ██      ██    ██    
+  ██    ██    ██    ███████ █████   ██      ██      ██    ██    
+  ██    ██    ██    ██   ██ ██      ██      ██      ██    ██    
+  ██    ██    ██    ██   ██ ██      ██      ██      ██    ██    
+   ██████     ██    ██   ██ ███████ ███████ ███████  ██████     
+```
 
 This project implements the classic game of Othello (Reversi) using bitboard techniques in C++ with a parallel SystemVerilog hardware implementation, featuring an advanced AI opponent.
 
@@ -248,67 +257,115 @@ endmodule
 
 ## Hardware Acceleration
 
-### Pipelined Move Generation
-The hardware implementation uses a 3-stage pipeline:
-1. **Direction Calculation Stage**
-   - All 8 directions processed in parallel
-   - Each direction uses dedicated shift network
-   ```systemverilog
-   // Example of shift network for one direction
-   module shift_network #(parameter DIR = NORTH) (
-       input  logic [63:0] in_board,
-       output logic [63:0] out_board
-   );
-       always_comb begin
-           case (DIR)
-               NORTH: out_board = {in_board[55:0], 8'b0};
-               SOUTH: out_board = {8'b0, in_board[63:8]};
-               // [Other directions...]
-           endcase
-       end
-   endmodule
-   ```
-
-2. **Move Validation Stage**
-   - Parallel validation of all potential moves
-   - Uses look-ahead for opponent piece flipping
-
-3. **Result Combination Stage**
-   - Combines results from all directions
-   - Applies final validity checks
-
-### Performance Metrics
-- Move generation: 1 cycle latency
-- Move validation: 2 cycles latency
-- Total pipeline depth: 3 cycles
-- Maximum throughput: 1 move/cycle
-
-## AI Hardware Acceleration
-
-### Parallel Position Evaluation
-```systemverilog
-module position_evaluator (
-    input  logic [63:0] player_board,
-    input  logic [63:0] opponent_board,
-    output logic [15:0] score
-);
-    // Parallel evaluation of multiple factors
-    logic [7:0] piece_count, mobility, corners, edges;
-    
-    piece_counter   pc(.board(player_board), .count(piece_count));
-    mobility_calc   mc(.board(player_board), .mobility(mobility));
-    corner_analyzer ca(.board(player_board), .score(corners));
-    edge_analyzer   ea(.board(player_board), .score(edges));
-    
-    // Weighted combination
-    always_comb
-        score = piece_count * PIECE_WEIGHT +
-                mobility   * MOBILITY_WEIGHT +
-                corners   * CORNER_WEIGHT +
-                edges     * EDGE_WEIGHT;
-endmodule
+### Overall Architecture
+```
+                                  ┌─────────────────┐
+                     ┌──────────►│  Move Generator │
+                     │           └────────┬────────┘
+                     │                    │
+┌──────────┐    ┌───┴────┐        ┌─────▼─────┐
+│  Input   │───►│ Board  │◄───────┤   Move    │
+│ Handler  │    │ State  │        │ Validator  │
+└──────────┘    └───┬────┘        └─────▲─────┘
+                    │                    │
+                    │           ┌────────┴────────┐
+                    └──────────►│ Position Score  │
+                               └─────────────────┘
 ```
 
+### Move Generator Pipeline
+```
+Stage 1: Direction Calculation
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│   North     │   │   South     │   │    East     │
+│  Shifter    │   │  Shifter    │   │  Shifter    │
+└─────┬───────┘   └─────┬───────┘   └─────┬───────┘
+      │                 │                 │
+      └─────────┬───────┴────────┬───────┘
+                │                │
+         ┌──────▼──────┐  ┌──────▼──────┐
+         │   Edge      │  │   Empty      │
+         │   Mask      │  │   Check      │
+         └──────┬──────┘  └──────┬──────┘
+                │               │
+                └───────┬───────┘
+                       ▼
+              Stage 2: Validation
+                ┌─────────┐
+                │  Move   │
+                │ Filter  │
+                └────┬────┘
+                     │
+              Stage 3: Output
+                ┌─────────┐
+                │  Legal  │
+                │ Moves   │
+                └─────────┘
+```
+
+### AI Processing Unit
+```
+┌───────────────────────────────────────────────┐
+│               Evaluation Engine               │
+├───────────┬───────────┬───────────┬──────────┤
+│  Piece    │ Mobility  │  Corner   │  Edge    │
+│ Counter   │ Analyzer  │ Control   │ Stability│
+└─────┬─────┴─────┬─────┴─────┬─────┴────┬─────┘
+      │           │           │          │
+┌─────▼─────┬─────▼─────┬─────▼────┬────▼─────┐
+│   Weight   │   Weight  │  Weight  │  Weight  │
+│     W1     │     W2    │    W3    │    W4    │
+└─────┬─────┴─────┬─────┴─────┬────┴─────┬────┘
+      │           │           │          │
+      └───────────┼───────────┼──────────┘
+                  │           │
+            ┌─────▼─────┬────▼─────┐
+            │  Adder    │  Final   │
+            │   Tree    │  Score   │
+            └───────────┴──────────┘
+```
+
+### Parallel Move Validation
+```
+┌─────────────┐
+│ Input Move  │
+└──────┬──────┘
+       │
+   ┌───▼───┐
+   │ Split │
+   └┬─┬─┬─┬┘
+┌──┘ │ │ └──┐
+│    │ │    │
+▼    ▼ ▼    ▼
+N    S E    W   Direction
+│    │ │    │   Validators
+├────┼─┼────┤
+│    │ │    │
+▼    ▼ ▼    ▼
+┌──┐ │ │ ┌──┐
+│  └─┼─┼─┘  │
+   ┌─▼─▼─┐
+   │Merge │
+   └──┬───┘
+      ▼
+┌──────────┐
+│  Valid   │
+│  Move    │
+└──────────┘
+```
+
+## Performance Characteristics
+
+### Pipeline Timing
+```
+Clock Cycle │  1  │  2  │  3  │  4  │  5  │
+────────────┼─────┼─────┼─────┼─────┼─────┤
+Direction   │ M1  │ M2  │ M3  │ M4  │ M5  │
+Validation  │     │ M1  │ M2  │ M3  │ M4  │
+Output      │     │     │ M1  │ M2  │ M3  │
+────────────┴─────┴─────┴─────┴─────┴─────┘
+M1-M5 = Different moves being processed
+```
 
 ## License
 This project is licensed under the MIT License - see the LICENSE file for details.
