@@ -160,100 +160,10 @@ uint64_t generateMoves() {
 ```
 
 ### Hardware Implementation
-The SystemVerilog implementation processes all directions truly in parallel:
-
-```systemverilog
-module move_generator (
-    input  logic [63:0] player_board,
-    input  logic [63:0] opponent_board,
-    output logic [63:0] legal_moves
-);
-    logic [63:0] north_moves, south_moves, east_moves, west_moves;
-    logic [63:0] ne_moves, nw_moves, se_moves, sw_moves;
-    
-    // Parallel direction modules
-    direction_checker #(.DIRECTION(NORTH)) north_check (
-        .player_board(player_board),
-        .opponent_board(opponent_board),
-        .moves(north_moves)
-    );
-    
-    // [Similar modules for other 7 directions]
-    
-    // Combine results
-    assign legal_moves = north_moves | south_moves | east_moves | west_moves |
-                        ne_moves | nw_moves | se_moves | sw_moves;
-endmodule
-
-// Individual direction checker
-module direction_checker #(
-    parameter int DIRECTION = 8  // Number of positions to shift
-) (
-    input  logic [63:0] player_board,
-    input  logic [63:0] opponent_board,
-    output logic [63:0] moves
-);
-    logic [63:0] candidates;
-    logic [63:0] empty = ~(player_board | opponent_board);
-    logic [63:0] edge_mask;
-    
-    // Generate edge mask based on direction
-    always_comb begin
-        case (DIRECTION)
-            NORTH:     edge_mask = 64'hFFFFFFFFFFFFFFFF;
-            NORTHEAST: edge_mask = 64'h7F7F7F7F7F7F7F7F;
-            // [Other directions...]
-        endcase
-    end
-    
-    // Pipeline stages for timing optimization
-    always_ff @(posedge clk) begin
-        // Stage 1: Find opponent pieces
-        candidates <= opponent_board & edge_mask;
-        
-        // Stage 2: Shift and check empty squares
-        moves <= shift_direction(candidates, DIRECTION) & empty;
-        
-        // Stage 3: Validate moves
-        moves <= moves & valid_move_mask;
-    end
-endmodule
-```
+The hardware implementation processes all directions truly in parallel using dedicated hardware modules for each direction. Each direction checker operates simultaneously, with results combined to determine legal moves.
 
 ### Parallel Move Validation
-Each potential move is validated simultaneously:
-
-```systemverilog
-module move_validator (
-    input  logic [63:0] move_bitmap,
-    input  logic [63:0] player_board,
-    input  logic [63:0] opponent_board,
-    output logic [63:0] valid_moves
-);
-    logic [63:0] valid_masks [0:7];  // One for each direction
-    
-    genvar i;
-    generate
-        for (i = 0; i < 8; i++) begin : direction_validators
-            direction_validator #(
-                .DIRECTION(i)
-            ) validator (
-                .move_bitmap(move_bitmap),
-                .player_board(player_board),
-                .opponent_board(opponent_board),
-                .valid_mask(valid_masks[i])
-            );
-        end
-    endgenerate
-    
-    // Combine results - a move is valid if it's valid in any direction
-    always_comb begin
-        valid_moves = '0;
-        for (int i = 0; i < 8; i++)
-            valid_moves |= valid_masks[i];
-    end
-endmodule
-```
+Each potential move is validated simultaneously using parallel direction validators. The system checks all eight directions at once, with dedicated hardware for each direction check. Results are combined through a fast reduction network to determine final move validity.
 
 ## Hardware Acceleration
 
