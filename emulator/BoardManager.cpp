@@ -1,103 +1,151 @@
 #include "BoardManager.hpp"
-
 #include <iostream>
+#include <iomanip>
+#include <string>
+
+// ANSI escape codes for colors
+const std::string RESET = "\033[0m";
+const std::string BLACK_PIECE = "\033[30;47m ● \033[0m";  // Black on white
+const std::string WHITE_PIECE = "\033[37;40m ○ \033[0m";  // White on black
+const std::string EMPTY_CELL = "\033[32;40m · \033[0m";   // Green dot on black
+const std::string LEGAL_MOVE = "\033[33;40m □ \033[0m";   // Yellow square on black
 
 BoardManager::BoardManager() {
     resetBoard();
-    isBlackTurn = true;
 }
 
 BoardManager::~BoardManager() {
 }
 
 void BoardManager::resetBoard() {
-    playerBoard = 0x0000000810000000;
-    opponentBoard = 0x0000001008000000;
-    legalMoves = 0x0000001020080000;
-    isBlackTurn = true;
+    // Initial board setup
+    playerBoard = 0x0000000810000000ULL;   // Black's initial pieces
+    opponentBoard = 0x0000001008000000ULL;  // White's initial pieces
+    isBlackTurn = true;  // Black moves first
+    legalMoves = getLegalMoves();
+}
+
+void BoardManager::printBoard(bool showLegalMoves) {
+    std::cout << "\n     A   B   C   D   E   F   G   H\n";
+    std::cout << "   ┌───┬───┬───┬───┬───┬───┬───┬───┐\n";
+    
+    for (int row = 0; row < 8; row++) {
+        std::cout << " " << (row + 1) << " │";
+        for (int col = 0; col < 8; col++) {
+            uint64_t mask = 1ULL << (row * 8 + col);
+            if (playerBoard & mask) {
+                std::cout << (isBlackTurn ? BLACK_PIECE : WHITE_PIECE) << "│";
+            } else if (opponentBoard & mask) {
+                std::cout << (isBlackTurn ? WHITE_PIECE : BLACK_PIECE) << "│";
+            } else if (showLegalMoves && (legalMoves & mask)) {
+                std::cout << LEGAL_MOVE << "│";
+            } else {
+                std::cout << EMPTY_CELL << "│";
+            }
+        }
+        if (row < 7) {
+            std::cout << "\n   ├───┼───┼───┼───┼───┼───┼───┼───┤\n";
+        }
+    }
+    std::cout << "\n   └───┴───┴───┴───┴───┴───┴───┴───┘\n";
+}
+
+void BoardManager::printBb(uint64_t bb) {
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            std::cout << ((bb >> (row * 8 + col)) & 1);
+        }
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+bool BoardManager::applyMove(uint8_t move) {
+    if (!isLegalMove(move)) {
+        return false;
+    }
+
+    uint64_t moveMask = 1ULL << move;
+    uint64_t flips = 0;
+
+    // Try all 8 directions
+    for (int i = 0; i < 8; i++) {
+        int8_t dir = DIRECTIONS[i];
+        uint64_t mask = EDGE_MASKS[i];
+        uint64_t possibleFlips = 0;
+        uint64_t current = moveMask;
+
+        // Move in the current direction while we see opponent pieces
+        while ((current & mask) && (current = (dir > 0 ? current << dir : current >> -dir))) {
+            if (current & opponentBoard) {
+                possibleFlips |= current;
+            } else if (current & playerBoard) {
+                flips |= possibleFlips;
+                break;
+            } else {
+                break;
+            }
+        }
+    }
+
+    if (flips == 0) {
+        return false;
+    }
+
+    // Apply the move
+    playerBoard |= moveMask | flips;
+    opponentBoard &= ~flips;
+
+    switchTurn();
+    return true;
 }
 
 void BoardManager::switchTurn() {
     std::swap(playerBoard, opponentBoard);
     isBlackTurn = !isBlackTurn;
+    legalMoves = getLegalMoves();
+}
+
+uint64_t BoardManager::getLegalMoves() {
+    uint64_t moves = 0;
+    uint64_t empty = ~(playerBoard | opponentBoard);
+
+    // Try all 8 directions from each opponent piece
+    for (int i = 0; i < 8; i++) {
+        int8_t dir = DIRECTIONS[i];
+        uint64_t mask = EDGE_MASKS[i];
+        uint64_t candidates = opponentBoard & mask;
+        
+        if (dir > 0) {
+            candidates = (candidates << dir) & empty;
+            while (candidates) {
+                moves |= candidates & empty;
+                candidates = ((candidates & mask) << dir) & playerBoard;
+            }
+        } else {
+            candidates = (candidates >> -dir) & empty;
+            while (candidates) {
+                moves |= candidates & empty;
+                candidates = ((candidates & mask) >> -dir) & playerBoard;
+            }
+        }
+    }
+
+    return moves;
+}
+
+bool BoardManager::isLegalMove(uint8_t move) const {
+    return (legalMoves & (1ULL << move)) != 0;
+}
+
+uint64_t BoardManager::getPlayerBoard() const {
+    return playerBoard;
+}
+
+uint64_t BoardManager::getOpponentBoard() const {
+    return opponentBoard;
 }
 
 bool BoardManager::isBlackPlayer() const {
     return isBlackTurn;
-}
-
-void BoardManager::printBb(uint64_t bb) {
-    for (int i = 56; i >= 0; i -= 8) {
-        for (int j = 7; j >= 0; j--) {
-            std::cout << ((bb >> (i + j)) & 1);
-        }
-        std::cout << '\n';
-    }
-}
-
-bool BoardManager::applyMove(uint8_t move) {
-    uint64_t moveMask = 1ULL << move;
-    std::cout << "Applying move: " << static_cast<int>(move) << std::endl;
-    std::cout << "Initial board:" << std::endl;
-    printBoard();
-    std::cout << "Player board:" << std::endl;
-    printBb(playerBoard);
-    std::cout << "Opponent board:" << std::endl;
-    printBb(opponentBoard);
-    
-    for (int i = 0; i < 8; i++) {
-        uint64_t check = moveMask, possibleFlips = 0;
-        std::cout << "Direction " << i << ": " << std::endl;
-
-        printBb(check);
-        std::cout << "Player board:" << std::endl;
-        printBb(playerBoard);
-        std::cout << "Opponent board:" << std::endl;
-        printBb(opponentBoard);
-        
-        while ((check = (i % 2 == 0 ? (check << DIRECTIONS[i]) : (check >> -DIRECTIONS[i]))) & opponentBoard) {
-            possibleFlips |= check;
-            std::cout << "  Found opponent piece at position:\n";
-            printBb(check);
-            std::cout << "  Current possible flips:\n";
-            printBb(possibleFlips);
-        }
-        
-        if (check & playerBoard) {
-            std::cout << "  Found player piece at end, applying flips" << std::endl;
-            playerBoard |= moveMask | possibleFlips;
-            opponentBoard &= ~possibleFlips;
-            std::cout << "  New board:" << std::endl;
-            printBoard();
-        } else {
-            std::cout << "  No player piece found at end, discarding flips" << std::endl;
-        }
-    }    
-    
-    std::cout << "Final board:" << std::endl;
-    printBoard();
-    switchTurn();
-    return true;
-}
-
-void BoardManager::printBoard() {
-    std::cout << "  8 7 6 5 4 3 2 1" << std::endl;
-    std::cout << " ┌────────────────┐" << std::endl;
-    for (int i = 63; i >= 0; i--) {
-        if (i % 8 == 7) {
-            std::cout << (1 + i/8) << "│";
-        }
-        if ((playerBoard >> i) & 1) {
-            std::cout << (isBlackTurn ? "x " : "o ");
-        } else if ((opponentBoard >> i) & 1) {
-            std::cout << (isBlackTurn ? "o " : "x ");
-        } else {
-            std::cout << ". ";
-        }
-        if (i % 8 == 0) {
-            std::cout << "│" << (1 + i/8) << std::endl;
-        }
-    }
-    std::cout << " └────────────────┘" << std::endl;
-    std::cout << "  8 7 6 5 4 3 2 1" << std::endl;
 }

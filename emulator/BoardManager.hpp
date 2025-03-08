@@ -30,12 +30,13 @@ class BoardManager {
         void resetBoard();
         bool applyMove(uint8_t move);
         uint64_t getLegalMoves();
-        uint64_t getPlayerBoard();
-        uint64_t getOpponentBoard();
-        void printBoard();
+        uint64_t getPlayerBoard() const;
+        uint64_t getOpponentBoard() const;
+        void printBoard(bool showLegalMoves = true);
         void printBb(uint64_t bb);
         void switchTurn();
         bool isBlackPlayer() const;
+        bool isLegalMove(uint8_t move) const;
 };
 
 #endif
